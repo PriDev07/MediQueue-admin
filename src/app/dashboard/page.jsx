@@ -116,34 +116,8 @@ export default function DashboardPage() {
         }
       }
     }
-    //Handle update location
-    const handleUpdateLocation = async () => {
-    setLoading(true);
-    try {
-      // Get current location
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const clinicDocRef = doc(db, 'clinics', clinicData.user.clinicId);
-
-          await updateDoc(clinicDocRef, {
-            loc: new GeoPoint(position.coords.latitude, position.coords.longitude),
-          });
-
-          alert('Location updated!');
-          setLoading(false);
-        },
-        (error) => {
-          console.error(error);
-          alert('Error getting location.');
-          setLoading(false);
-        }
-      );
-    } catch (error) {
-      console.error('Error updating location:', error);
-      alert('Error updating location.');
-      setLoading(false);
-    }
-  };
+    
+    
 
 
     fetchClinicData()
@@ -305,7 +279,7 @@ export default function DashboardPage() {
         location: "",
         TokensProvided: 0,
         TokensServed: 0,
-        availaibilitty: true,
+        availaibility: true,
       })
       setShowAddDoctorDialog(false)
       await refreshClinicData()
