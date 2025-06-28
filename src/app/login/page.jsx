@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,12 +27,62 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+        const clinicDocRef = await addDoc(collection(db, 'clinics'), {
+  Name: "New Clinic",
+  Rating: 0,
+  TokensProvided: 0,
+  bedSection: {
+    Bedinfo: {
+      General: 0,
+      ICU: 0,
+      Special: 0,
+    },
+    available: 0,
+    cleaning: 0,
+    occupied: 0,
+  },
+  bloodBank: {
+    "A+": 0,
+    "B-": 0,
+    "C+": "0",
+  },
+  currentStatus: 0,
+  doctors: {
+    "1": {
+      Name: "Doctor Name",
+      TokensProvided: 0,
+      TokensServed: 0,
+      availaibility: false,
+      department: "Department",
+    },
+  },
+  location: "Clinic Location",
+  loc: {
+    latitude: 0,
+    longitude: 0,
+  },
+  createdAt: serverTimestamp(),
+});
+
+
+        // 3️⃣ Create user doc in 'users' collection
+        const userDocRef = doc(db, 'users', userCredential.user.uid);
+        await setDoc(userDocRef, {
+          email: email,
+          clinicId: clinicDocRef.id,
+          role: 'clinicadmin',
+          createdAt: serverTimestamp(),
+        });
+
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
+
       router.push('/dashboard');
     } catch (error) {
+      console.error(error);
       setError(error.message);
     } finally {
       setLoading(false);
