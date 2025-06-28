@@ -30,8 +30,8 @@ export default function LoginPage() {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
         const clinicDocRef = await addDoc(collection(db, 'clinics'), {
-  Name: "New Clinic",
-  Rating: 0,
+  Name: "Samvit Hospital",
+  Rating: 4.3,
   TokensProvided: 0,
   bedSection: {
     Bedinfo: {
@@ -46,7 +46,7 @@ export default function LoginPage() {
   bloodBank: {
     "A+": 0,
     "B-": 0,
-    "C+": "0",
+
   },
   currentStatus: 0,
   doctors: {
@@ -58,7 +58,7 @@ export default function LoginPage() {
       department: "Department",
     },
   },
-  location: "Clinic Location",
+  location: "Gurgaon",
   loc: new GeoPoint(28.4634764,77.0516460),
   createdAt: serverTimestamp(),
 });

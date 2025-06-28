@@ -1,8 +1,7 @@
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, GeoPoint } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export const firestoreService = {
-  // Get user data by email
   async getUserByEmail(email) {
     try {
       const usersRef = collection(db, 'users');
@@ -41,7 +40,6 @@ export const firestoreService = {
     }
   },
 
-  // Combined function to get clinic data by user email
   async getClinicByUserEmail(email) {
     try {
       const userData = await this.getUserByEmail(email);
@@ -64,13 +62,10 @@ export const firestoreService = {
     }
   },
 
-  // Update bed section data
   async updateBedSection(clinicId, bedSectionData) {
     try {
       const clinicRef = doc(db, 'clinics', clinicId);
-      await updateDoc(clinicRef, {
-        bedSection: bedSectionData
-      });
+      await updateDoc(clinicRef, { bedSection: bedSectionData });
       return true;
     } catch (error) {
       console.error('Error updating bed section:', error);
@@ -78,13 +73,10 @@ export const firestoreService = {
     }
   },
 
-  // Update blood bank data
   async updateBloodBank(clinicId, bloodBankData) {
     try {
       const clinicRef = doc(db, 'clinics', clinicId);
-      await updateDoc(clinicRef, {
-        bloodBank: bloodBankData
-      });
+      await updateDoc(clinicRef, { bloodBank: bloodBankData });
       return true;
     } catch (error) {
       console.error('Error updating blood bank:', error);
@@ -92,13 +84,10 @@ export const firestoreService = {
     }
   },
 
-  // Update doctors data
   async updateDoctors(clinicId, doctorsData) {
     try {
       const clinicRef = doc(db, 'clinics', clinicId);
-      await updateDoc(clinicRef, {
-        doctors: doctorsData
-      });
+      await updateDoc(clinicRef, { doctors: doctorsData });
       return true;
     } catch (error) {
       console.error('Error updating doctors:', error);
@@ -106,7 +95,6 @@ export const firestoreService = {
     }
   },
 
-  // Add or update a single doctor
   async updateDoctor(clinicId, doctorId, doctorData) {
     try {
       const clinicRef = doc(db, 'clinics', clinicId);
@@ -119,9 +107,7 @@ export const firestoreService = {
           [doctorId]: doctorData
         };
         
-        await updateDoc(clinicRef, {
-          doctors: updatedDoctors
-        });
+        await updateDoc(clinicRef, { doctors: updatedDoctors });
         return true;
       }
       throw new Error('Clinic not found');
@@ -129,5 +115,27 @@ export const firestoreService = {
       console.error('Error updating doctor:', error);
       throw error;
     }
-  }
+  },
+
+  async availaibility(clinicId, clinicInfo) {
+    try {
+      const clinicRef = doc(db, 'clinics', clinicId);
+      const updateData = {
+        Name: clinicInfo.Name,
+        Rating: clinicInfo.Rating,
+        TokensProvided: clinicInfo.TokensProvided,
+        location: clinicInfo.location,
+      };
+
+      if (clinicInfo.loc && clinicInfo.loc.latitude && clinicInfo.loc.longitude) {
+        updateData.loc = new GeoPoint(clinicInfo.loc.latitude, clinicInfo.loc.longitude);
+      }
+
+      await updateDoc(clinicRef, updateData);
+      return true;
+    } catch (error) {
+      console.error('Error updating clinic info:', error);
+      throw error;
+    }
+  },
 };

@@ -1,33 +1,47 @@
-"use client"
+"use client";
 
-import { useRequireAuth } from "../../hooks/useRequireAuth"
-import { useAuth } from "../../contexts/AuthContext"
-import { useState, useEffect } from "react"
-import Cookies from "js-cookie"
-import { firestoreService } from "../../services/firestoreService"
-import { Edit, Plus, Save, X, Users, Bed, Droplets, Activity, UserPlus, RefreshCw } from "lucide-react"
+import { useRequireAuth } from "../../hooks/useRequireAuth";
+import { useAuth } from "../../contexts/AuthContext";
+import { useState, useEffect } from "react";
+import Cookies from "js-cookie";
+import { firestoreService } from "../../services/firestoreService";
+import { GeoPoint, doc, updateDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
+
+import {
+  Edit,
+  Plus,
+  Save,
+  X,
+  Users,
+  Bed,
+  Droplets,
+  Activity,
+  UserPlus,
+  RefreshCw,
+} from "lucide-react";
 
 export default function DashboardPage() {
-  const { user, loading } = useRequireAuth()
-  const { logout } = useAuth()
-  const [tokenInfo, setTokenInfo] = useState(null)
-  const [tokenLoading, setTokenLoading] = useState(true)
-  const [clinicData, setClinicData] = useState(null)
-  const [clinicLoading, setClinicLoading] = useState(true)
-  const [clinicError, setClinicError] = useState(null)
+  const { user, loading } = useRequireAuth();
+  const { logout } = useAuth();
+  const [tokenInfo, setTokenInfo] = useState(null);
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [clinicData, setClinicData] = useState(null);
+  const [clinicLoading, setClinicLoading] = useState(true);
+  const [clinicError, setClinicError] = useState(null);
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
 
-  // Edit states
-  const [editingBeds, setEditingBeds] = useState(false)
-  const [editingBloodBank, setEditingBloodBank] = useState(false)
-  const [editingDoctor, setEditingDoctor] = useState(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingBeds, setEditingBeds] = useState(false);
+  const [editingBloodBank, setEditingBloodBank] = useState(false);
+  const [editingDoctor, setEditingDoctor] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form states
-  const [bedFormData, setBedFormData] = useState({})
-  const [bloodBankFormData, setBloodBankFormData] = useState({})
-  const [doctorFormData, setDoctorFormData] = useState({})
-  const [newBedType, setNewBedType] = useState({ name: "", count: "" })
-  const [newBloodGroup, setNewBloodGroup] = useState({ type: "", count: "" })
+  const [bedFormData, setBedFormData] = useState({});
+  const [bloodBankFormData, setBloodBankFormData] = useState({});
+  const [doctorFormData, setDoctorFormData] = useState({});
+  const [newBedType, setNewBedType] = useState({ name: "", count: "" });
+  const [newBloodGroup, setNewBloodGroup] = useState({ type: "", count: "" });
   const [newDoctor, setNewDoctor] = useState({
     Name: "",
     department: "",
@@ -35,136 +49,138 @@ export default function DashboardPage() {
     TokensProvided: 0,
     TokensServed: 0,
     availaibilitty: true,
-  })
+  });
 
   // Dialog states
-  const [showAddBedDialog, setShowAddBedDialog] = useState(false)
-  const [showAddBloodDialog, setShowAddBloodDialog] = useState(false)
-  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false)
+  const [showAddBedDialog, setShowAddBedDialog] = useState(false);
+  const [showAddBloodDialog, setShowAddBloodDialog] = useState(false);
+  const [showAddDoctorDialog, setShowAddDoctorDialog] = useState(false);
 
   // Toast state
-  const [toast, setToast] = useState(null)
+  const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
-  }
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const fetchTokenInfo = async () => {
       if (user) {
         try {
-          const token = await user.getIdToken()
-          const tokenResult = await user.getIdTokenResult()
+          const token = await user.getIdToken();
+          const tokenResult = await user.getIdTokenResult();
 
           const decodeJWT = (token) => {
             try {
-              const base64Url = token.split(".")[1]
-              const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/")
+              const base64Url = token.split(".")[1];
+              const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
               const jsonPayload = decodeURIComponent(
                 atob(base64)
                   .split("")
-                  .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-                  .join(""),
-              )
-              return JSON.parse(jsonPayload)
+                  .map(
+                    (c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)
+                  )
+                  .join("")
+              );
+              return JSON.parse(jsonPayload);
             } catch (error) {
-              console.error("Error decoding JWT:", error)
-              return null
+              console.error("Error decoding JWT:", error);
+              return null;
             }
-          }
+          };
 
-          const decodedToken = decodeJWT(token)
+          const decodedToken = decodeJWT(token);
 
           setTokenInfo({
             token,
             tokenResult,
             decodedToken,
             cookieToken: Cookies.get("auth-token"),
-          })
+          });
         } catch (error) {
-          console.error("Error fetching token info:", error)
+          console.error("Error fetching token info:", error);
         } finally {
-          setTokenLoading(false)
+          setTokenLoading(false);
         }
       }
-    }
+    };
 
-    fetchTokenInfo()
-  }, [user])
+    fetchTokenInfo();
+  }, [user]);
 
   useEffect(() => {
     const fetchClinicData = async () => {
       if (user && user.email) {
         try {
-          setClinicLoading(true)
-          setClinicError(null)
-          const data = await firestoreService.getClinicByUserEmail(user.email)
-          setClinicData(data)
+          setClinicLoading(true);
+          setClinicError(null);
+          const data = await firestoreService.getClinicByUserEmail(user.email);
+          setClinicData(data);
 
           if (data?.clinic?.bedSection) {
-            setBedFormData(data.clinic.bedSection)
+            setBedFormData(data.clinic.bedSection);
           }
           if (data?.clinic?.bloodBank) {
-            setBloodBankFormData(data.clinic.bloodBank)
+            setBloodBankFormData(data.clinic.bloodBank);
           }
         } catch (error) {
-          console.error("Error fetching clinic data:", error)
-          setClinicError(error.message)
+          console.error("Error fetching clinic data:", error);
+          setClinicError(error.message);
         } finally {
-          setClinicLoading(false)
+          setClinicLoading(false);
         }
       }
-    }
-    
-    
+    };
 
-
-    fetchClinicData()
-  }, [user])
+    fetchClinicData();
+  }, [user]);
 
   const refreshClinicData = async () => {
     if (user && user.email) {
       try {
-        const data = await firestoreService.getClinicByUserEmail(user.email)
-        setClinicData(data)
-        setBedFormData(data.clinic.bedSection)
-        setBloodBankFormData(data.clinic.bloodBank)
-        showToast("Data refreshed successfully")
+        const data = await firestoreService.getClinicByUserEmail(user.email);
+        setClinicData(data);
+        setBedFormData(data.clinic.bedSection);
+        setBloodBankFormData(data.clinic.bloodBank);
+        showToast("Data refreshed successfully");
       } catch (error) {
-        showToast("Failed to refresh clinic data", "error")
+        showToast("Failed to refresh clinic data", "error");
       }
     }
-  }
+  };
 
   // Bed Section Functions
   const handleBedEdit = () => {
-    setEditingBeds(true)
-  }
+    setEditingBeds(true);
+  };
 
   const handleBedSave = async () => {
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateBedSection(clinicData.clinic.id, bedFormData)
-      setEditingBeds(false)
-      await refreshClinicData()
-      showToast("Bed section updated successfully")
+      await firestoreService.updateBedSection(
+        clinicData.clinic.id,
+        bedFormData
+      );
+      setEditingBeds(false);
+      await refreshClinicData();
+      showToast("Bed section updated successfully");
     } catch (error) {
-      showToast("Failed to update bed section", "error")
+      showToast("Failed to update bed section", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleBedCancel = () => {
-    setBedFormData(clinicData.clinic.bedSection)
-    setEditingBeds(false)
-  }
+    setBedFormData(clinicData.clinic.bedSection);
+    setEditingBeds(false);
+  };
 
   const handleAddNewBedType = async () => {
     if (!newBedType.name || !newBedType.count) {
-      showToast("Please fill in both bed type name and count", "error")
-      return
+      showToast("Please fill in both bed type name and count", "error");
+      return;
     }
 
     const updatedBedData = {
@@ -173,106 +189,172 @@ export default function DashboardPage() {
         ...bedFormData.Bedinfo,
         [newBedType.name]: Number.parseInt(newBedType.count),
       },
-    }
+    };
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateBedSection(clinicData.clinic.id, updatedBedData)
-      setNewBedType({ name: "", count: "" })
-      setShowAddBedDialog(false)
-      await refreshClinicData()
-      showToast("New bed type added successfully")
+      await firestoreService.updateBedSection(
+        clinicData.clinic.id,
+        updatedBedData
+      );
+      setNewBedType({ name: "", count: "" });
+      setShowAddBedDialog(false);
+      await refreshClinicData();
+      showToast("New bed type added successfully");
     } catch (error) {
-      showToast("Failed to add new bed type", "error")
+      showToast("Failed to add new bed type", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   // Blood Bank Functions
   const handleBloodBankEdit = () => {
-    setEditingBloodBank(true)
-  }
+    setEditingBloodBank(true);
+  };
 
   const handleBloodBankSave = async () => {
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateBloodBank(clinicData.clinic.id, bloodBankFormData)
-      setEditingBloodBank(false)
-      await refreshClinicData()
-      showToast("Blood bank updated successfully")
+      await firestoreService.updateBloodBank(
+        clinicData.clinic.id,
+        bloodBankFormData
+      );
+      setEditingBloodBank(false);
+      await refreshClinicData();
+      showToast("Blood bank updated successfully");
     } catch (error) {
-      showToast("Failed to update blood bank", "error")
+      showToast("Failed to update blood bank", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleBloodBankCancel = () => {
-    setBloodBankFormData(clinicData.clinic.bloodBank)
-    setEditingBloodBank(false)
-  }
+    setBloodBankFormData(clinicData.clinic.bloodBank);
+    setEditingBloodBank(false);
+  };
 
   const handleAddNewBloodGroup = async () => {
     if (!newBloodGroup.type || !newBloodGroup.count) {
-      showToast("Please fill in both blood group type and count", "error")
-      return
+      showToast("Please fill in both blood group type and count", "error");
+      return;
     }
 
     const updatedBloodData = {
       ...bloodBankFormData,
       [newBloodGroup.type]: newBloodGroup.count,
-    }
+    };
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateBloodBank(clinicData.clinic.id, updatedBloodData)
-      setNewBloodGroup({ type: "", count: "" })
-      setShowAddBloodDialog(false)
-      await refreshClinicData()
-      showToast("New blood group added successfully")
+      await firestoreService.updateBloodBank(
+        clinicData.clinic.id,
+        updatedBloodData
+      );
+      setNewBloodGroup({ type: "", count: "" });
+      setShowAddBloodDialog(false);
+      await refreshClinicData();
+      showToast("New blood group added successfully");
     } catch (error) {
-      showToast("Failed to add new blood group", "error")
+      showToast("Failed to add new blood group", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   // Doctor Functions
   const handleDoctorEdit = (doctorId) => {
-    setEditingDoctor(doctorId)
-    setDoctorFormData(clinicData.clinic.doctors[doctorId])
-  }
+    setEditingDoctor(doctorId);
+    // Clone to avoid directly mutating state
+    setDoctorFormData({ ...clinicData.clinic.doctors[doctorId] });
+  };
 
   const handleDoctorSave = async (doctorId) => {
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateDoctor(clinicData.clinic.id, doctorId, doctorFormData)
-      setEditingDoctor(null)
-      await refreshClinicData()
-      showToast("Doctor information updated successfully")
+      // Make sure field keys are correct and consistent
+      const updatedDoctor = {
+        Name: doctorFormData.Name || "",
+        department: doctorFormData.department || "",
+        location: doctorFormData.location || "",
+        TokensProvided: doctorFormData.TokensProvided || 0,
+        TokensServed: doctorFormData.TokensServed || 0,
+        availaibility:
+          doctorFormData.availaibility === true ||
+          doctorFormData.availaibility === "true",
+      };
+
+      await firestoreService.updateDoctor(
+        clinicData.clinic.id,
+        doctorId,
+        updatedDoctor
+      );
+      setEditingDoctor(null);
+      await refreshClinicData();
+      showToast("Doctor information updated successfully");
     } catch (error) {
-      showToast("Failed to update doctor information", "error")
+      console.error(error);
+      showToast("Failed to update doctor information", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleDoctorCancel = () => {
-    setEditingDoctor(null)
-    setDoctorFormData({})
-  }
+    setEditingDoctor(null);
+    setDoctorFormData({});
+  };
+  const handleUpdateLocation = async () => {
+    try {
+      const latNum = parseFloat(latitude);
+      const lngNum = parseFloat(longitude);
+
+      if (isNaN(latNum) || isNaN(lngNum)) {
+        showToast("Please enter valid latitude and longitude", "error");
+        return;
+      }
+
+      const geoPoint = new GeoPoint(latNum, lngNum);
+
+      const clinicRef = doc(db, "clinics", clinicData.clinic.id);
+      await updateDoc(clinicRef, {
+        loc: geoPoint,
+      });
+
+      showToast("Location updated successfully");
+      await refreshClinicData();
+    } catch (error) {
+      console.error("Failed to update location:", error);
+      showToast("Failed to update location", "error");
+    }
+  };
 
   const handleAddNewDoctor = async () => {
     if (!newDoctor.Name || !newDoctor.department || !newDoctor.location) {
-      showToast("Please fill in all required fields", "error")
-      return
+      showToast("Please fill in all required fields", "error");
+      return;
     }
 
-    const doctorId = Date.now().toString() // Simple ID generation
-    setIsSubmitting(true)
+    const doctorId = Date.now().toString();
+    setIsSubmitting(true);
     try {
-      await firestoreService.updateDoctor(clinicData.clinic.id, doctorId, newDoctor)
+      const newDoctorData = {
+        Name: newDoctor.Name,
+        department: newDoctor.department,
+        location: newDoctor.location,
+        TokensProvided: newDoctor.TokensProvided || 0,
+        TokensServed: newDoctor.TokensServed || 0,
+        availaibility:
+          newDoctor.availaibility === true ||
+          newDoctor.availaibility === "true",
+      };
+
+      await firestoreService.updateDoctor(
+        clinicData.clinic.id,
+        doctorId,
+        newDoctorData
+      );
       setNewDoctor({
         Name: "",
         department: "",
@@ -280,16 +362,17 @@ export default function DashboardPage() {
         TokensProvided: 0,
         TokensServed: 0,
         availaibility: true,
-      })
-      setShowAddDoctorDialog(false)
-      await refreshClinicData()
-      showToast("New doctor added successfully")
+      });
+      setShowAddDoctorDialog(false);
+      await refreshClinicData();
+      showToast("New doctor added successfully");
     } catch (error) {
-      showToast("Failed to add new doctor", "error")
+      console.error(error);
+      showToast("Failed to add new doctor", "error");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -299,15 +382,15 @@ export default function DashboardPage() {
           <div className="text-lg font-medium text-gray-700">Loading...</div>
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {
-    return null
+    return null;
   }
 
   const renderBedSection = () => {
-    if (!clinicData?.clinic?.bedSection) return null
+    if (!clinicData?.clinic?.bedSection) return null;
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -315,7 +398,9 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Bed className="h-5 w-5 text-blue-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Bed Management</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Bed Management
+              </h2>
             </div>
             <div className="flex space-x-2">
               <button
@@ -363,35 +448,42 @@ export default function DashboardPage() {
           <div className="space-y-6">
             {/* Bed Types */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Bed Types</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                Bed Types
+              </h4>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {bedFormData.Bedinfo &&
-                  Object.entries(bedFormData.Bedinfo).map(([bedType, count]) => (
-                    <div
-                      key={bedType}
-                      className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl shadow-lg"
-                    >
-                      <div className="text-blue-100 text-sm font-medium">{bedType} Beds</div>
-                      {editingBeds ? (
-                        <input
-                          type="number"
-                          value={bedFormData.Bedinfo[bedType]}
-                          onChange={(e) =>
-                            setBedFormData({
-                              ...bedFormData,
-                              Bedinfo: {
-                                ...bedFormData.Bedinfo,
-                                [bedType]: Number.parseInt(e.target.value) || 0,
-                              },
-                            })
-                          }
-                          className="mt-2 w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      ) : (
-                        <div className="text-2xl font-bold">{count}</div>
-                      )}
-                    </div>
-                  ))}
+                  Object.entries(bedFormData.Bedinfo).map(
+                    ([bedType, count]) => (
+                      <div
+                        key={bedType}
+                        className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4 rounded-xl shadow-lg"
+                      >
+                        <div className="text-blue-100 text-sm font-medium">
+                          {bedType} Beds
+                        </div>
+                        {editingBeds ? (
+                          <input
+                            type="number"
+                            value={bedFormData.Bedinfo[bedType]}
+                            onChange={(e) =>
+                              setBedFormData({
+                                ...bedFormData,
+                                Bedinfo: {
+                                  ...bedFormData.Bedinfo,
+                                  [bedType]:
+                                    Number.parseInt(e.target.value) || 0,
+                                },
+                              })
+                            }
+                            className="text-black mt-2 w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        ) : (
+                          <div className="text-2xl font-bold">{count}</div>
+                        )}
+                      </div>
+                    )
+                  )}
               </div>
             </div>
 
@@ -399,7 +491,9 @@ export default function DashboardPage() {
 
             {/* Bed Status */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Bed Status</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                Bed Status
+              </h4>
               <div className="grid grid-cols-3 gap-4">
                 {["available", "cleaning", "occupied"].map((status) => (
                   <div
@@ -408,11 +502,13 @@ export default function DashboardPage() {
                       status === "available"
                         ? "bg-gradient-to-br from-green-500 to-green-600"
                         : status === "cleaning"
-                          ? "bg-gradient-to-br from-orange-500 to-orange-600"
-                          : "bg-gradient-to-br from-purple-500 to-purple-600"
+                        ? "bg-gradient-to-br from-orange-500 to-orange-600"
+                        : "bg-gradient-to-br from-purple-500 to-purple-600"
                     }`}
                   >
-                    <div className="text-sm font-medium opacity-90 capitalize">{status}</div>
+                    <div className="text-sm font-medium opacity-90 capitalize">
+                      {status}
+                    </div>
                     {editingBeds ? (
                       <input
                         type="number"
@@ -423,10 +519,12 @@ export default function DashboardPage() {
                             [status]: Number.parseInt(e.target.value) || 0,
                           })
                         }
-                        className="mt-2 w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="text-black mt-2 w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     ) : (
-                      <div className="text-2xl font-bold">{bedFormData[status] || 0}</div>
+                      <div className="text-2xl font-bold">
+                        {bedFormData[status] || 0}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -435,13 +533,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   const renderBloodBankSection = () => {
-    if (!clinicData?.clinic?.bloodBank) return null
+    if (!clinicData?.clinic?.bloodBank) return null;
 
-    const bloodTypes = Object.entries(bloodBankFormData).filter(([key]) => key !== "currentStatus")
+    const bloodTypes = Object.entries(bloodBankFormData).filter(
+      ([key]) => key !== "currentStatus"
+    );
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -449,7 +549,9 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Droplets className="h-5 w-5 text-red-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Blood Bank</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Blood Bank
+              </h2>
             </div>
             <div className="flex items-center space-x-2">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -503,7 +605,9 @@ export default function DashboardPage() {
                 key={bloodType}
                 className="bg-gradient-to-br from-red-500 to-red-600 text-white p-4 rounded-xl shadow-lg text-center"
               >
-                <div className="text-red-100 text-sm font-medium mb-2">{bloodType}</div>
+                <div className="text-red-100 text-sm font-medium mb-2">
+                  {bloodType}
+                </div>
                 {editingBloodBank ? (
                   <input
                     type="number"
@@ -514,7 +618,7 @@ export default function DashboardPage() {
                         [bloodType]: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                    className="text-black w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
                   />
                 ) : (
                   <div className="text-2xl font-bold">{count}</div>
@@ -525,11 +629,11 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   const renderDoctorsSection = () => {
-    if (!clinicData?.clinic?.doctors) return null
+    if (!clinicData?.clinic?.doctors) return null;
 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -537,7 +641,9 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Users className="h-5 w-5 text-indigo-600" />
-              <h2 className="text-xl font-semibold text-gray-900">Medical Staff</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Medical Staff
+              </h2>
             </div>
             <button
               onClick={() => setShowAddDoctorDialog(true)}
@@ -550,139 +656,185 @@ export default function DashboardPage() {
         </div>
         <div className="p-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {Object.entries(clinicData.clinic.doctors).map(([doctorId, doctor]) => (
-              <div
-                key={doctorId}
-                className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                      {doctor.Name.charAt(0)}
+            {Object.entries(clinicData.clinic.doctors).map(
+              ([doctorId, doctor]) => (
+                <div
+                  key={doctorId}
+                  className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                        {doctor.Name.charAt(0)}
+                      </div>
+                      <div>
+                        {editingDoctor === doctorId ? (
+                          <input
+                            type="text"
+                            value={doctorFormData.Name}
+                            onChange={(e) =>
+                              setDoctorFormData({
+                                ...doctorFormData,
+                                Name: e.target.value,
+                              })
+                            }
+                            className="text-black text-lg font-semibold mb-1 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        ) : (
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {doctor.Name}
+                          </h3>
+                        )}
+                        {editingDoctor === doctorId ? (
+                          <input
+                            type="text"
+                            value={doctorFormData.department}
+                            onChange={(e) =>
+                              setDoctorFormData({
+                                ...doctorFormData,
+                                department: e.target.value,
+                              })
+                            }
+                            className="text-black text-sm px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        ) : (
+                          <p className="text-sm text-gray-600">
+                            {doctor.department}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {editingDoctor === doctorId ? (
+                        <select
+                          value={doctorFormData.availaibility?.toString()}
+                          onChange={(e) =>
+                            setDoctorFormData({
+                              ...doctorFormData,
+                              availaibility: e.target.value === "true",
+                            })
+                          }
+                          className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="true">Available</option>
+                          <option value="false">Not Available</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                            doctor.availaibility
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {doctor.availaibility
+                            ? "🟢 Available"
+                            : "🔴 Not Available"}
+                        </span>
+                      )}
+                      {editingDoctor === doctorId ? (
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => handleDoctorSave(doctorId)}
+                            disabled={isSubmitting}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                          >
+                            {isSubmitting ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Save className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={handleDoctorCancel}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleDoctorEdit(doctorId)}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-500 font-medium">Location</div>
+                      {editingDoctor === doctorId ? (
+                        <input
+                          type="text"
+                          value={doctorFormData.location}
+                          onChange={(e) =>
+                            setDoctorFormData({
+                              ...doctorFormData,
+                              location: e.target.value,
+                            })
+                          }
+                          className="text-gray-900 mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      ) : (
+                        <div className="text-gray-900">{doctor.location}</div>
+                      )}
                     </div>
                     <div>
+                      <div className="text-gray-500 font-medium">
+                        Tokens Provided
+                      </div>
                       {editingDoctor === doctorId ? (
                         <input
-                          type="text"
-                          value={doctorFormData.Name}
-                          onChange={(e) => setDoctorFormData({ ...doctorFormData, Name: e.target.value })}
-                          className="text-lg font-semibold mb-1 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          type="number"
+                          value={doctorFormData.TokensProvided}
+                          onChange={(e) =>
+                            setDoctorFormData({
+                              ...doctorFormData,
+                              TokensProvided: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          className="text-gray-900 mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       ) : (
-                        <h3 className="text-lg font-semibold text-gray-900">{doctor.Name}</h3>
+                        <div className="text-blue-600 font-semibold">
+                          {doctor.TokensProvided || 0}
+                        </div>
                       )}
+                    </div>
+                    <div className="col-span-2">
+                      <div className="text-gray-500 font-medium">
+                        Tokens Served
+                      </div>
                       {editingDoctor === doctorId ? (
                         <input
-                          type="text"
-                          value={doctorFormData.department}
-                          onChange={(e) => setDoctorFormData({ ...doctorFormData, department: e.target.value })}
-                          className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          type="number"
+                          value={doctorFormData.TokensServed}
+                          onChange={(e) =>
+                            setDoctorFormData({
+                              ...doctorFormData,
+                              TokensServed: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          className="text-gray-900 mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       ) : (
-                        <p className="text-sm text-gray-600">{doctor.department}</p>
+                        <div className="text-green-600 font-semibold">
+                          {doctor.TokensServed || 0}
+                        </div>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {editingDoctor === doctorId ? (
-                      <select
-                        value={doctorFormData.availaibilitty?.toString()}
-                        onChange={(e) =>
-                          setDoctorFormData({ ...doctorFormData, availaibilitty: e.target.value === "true" })
-                        }
-                        className="px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="true">Available</option>
-                        <option value="false">Not Available</option>
-                      </select>
-                    ) : (
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                          doctor.availaibilitty ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {doctor.availaibilitty ? "🟢 Available" : "🔴 Not Available"}
-                      </span>
-                    )}
-                    {editingDoctor === doctorId ? (
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => handleDoctorSave(doctorId)}
-                          disabled={isSubmitting}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-                        >
-                          {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        </button>
-                        <button
-                          onClick={handleDoctorCancel}
-                          className="p-2 text-gray-600 hover:bg-gray-50 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleDoctorEdit(doctorId)}
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-gray-500 font-medium">Location</div>
-                    {editingDoctor === doctorId ? (
-                      <input
-                        type="text"
-                        value={doctorFormData.location}
-                        onChange={(e) => setDoctorFormData({ ...doctorFormData, location: e.target.value })}
-                        className="mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    ) : (
-                      <div className="text-gray-900">{doctor.location}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-gray-500 font-medium">Tokens Provided</div>
-                    {editingDoctor === doctorId ? (
-                      <input
-                        type="number"
-                        value={doctorFormData.TokensProvided}
-                        onChange={(e) =>
-                          setDoctorFormData({ ...doctorFormData, TokensProvided: Number.parseInt(e.target.value) || 0 })
-                        }
-                        className="mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    ) : (
-                      <div className="text-blue-600 font-semibold">{doctor.TokensProvided || 0}</div>
-                    )}
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-gray-500 font-medium">Tokens Served</div>
-                    {editingDoctor === doctorId ? (
-                      <input
-                        type="number"
-                        value={doctorFormData.TokensServed}
-                        onChange={(e) =>
-                          setDoctorFormData({ ...doctorFormData, TokensServed: Number.parseInt(e.target.value) || 0 })
-                        }
-                        className="mt-1 w-full px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    ) : (
-                      <div className="text-green-600 font-semibold">{doctor.TokensServed || 0}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
@@ -706,27 +858,39 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Bed Type</h3>
-              <p className="text-sm text-gray-500 mb-4">Add a new type of bed to your hospital inventory.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Add New Bed Type
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Add a new type of bed to your hospital inventory.
+              </p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bed Type Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bed Type Name
+                  </label>
                   <input
                     type="text"
                     value={newBedType.name}
-                    onChange={(e) => setNewBedType({ ...newBedType, name: e.target.value })}
+                    onChange={(e) =>
+                      setNewBedType({ ...newBedType, name: e.target.value })
+                    }
                     placeholder="e.g., Emergency, Pediatric"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Count</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Count
+                  </label>
                   <input
                     type="number"
                     value={newBedType.count}
-                    onChange={(e) => setNewBedType({ ...newBedType, count: e.target.value })}
+                    onChange={(e) =>
+                      setNewBedType({ ...newBedType, count: e.target.value })
+                    }
                     placeholder="Number of beds"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -742,7 +906,9 @@ export default function DashboardPage() {
                   disabled={isSubmitting}
                   className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
-                  {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Add Bed Type
                 </button>
               </div>
@@ -756,27 +922,45 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Blood Group</h3>
-              <p className="text-sm text-gray-500 mb-4">Add a new blood group to your blood bank inventory.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Add New Blood Group
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Add a new blood group to your blood bank inventory.
+              </p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Blood Group Type
+                  </label>
                   <input
                     type="text"
                     value={newBloodGroup.type}
-                    onChange={(e) => setNewBloodGroup({ ...newBloodGroup, type: e.target.value })}
+                    onChange={(e) =>
+                      setNewBloodGroup({
+                        ...newBloodGroup,
+                        type: e.target.value,
+                      })
+                    }
                     placeholder="e.g., AB+, O-, etc."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Units Available</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Units Available
+                  </label>
                   <input
                     type="number"
                     value={newBloodGroup.count}
-                    onChange={(e) => setNewBloodGroup({ ...newBloodGroup, count: e.target.value })}
+                    onChange={(e) =>
+                      setNewBloodGroup({
+                        ...newBloodGroup,
+                        count: e.target.value,
+                      })
+                    }
                     placeholder="Number of units"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -792,7 +976,9 @@ export default function DashboardPage() {
                   disabled={isSubmitting}
                   className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
-                  {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Add Blood Group
                 </button>
               </div>
@@ -806,68 +992,101 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Doctor</h3>
-              <p className="text-sm text-gray-500 mb-4">Add a new doctor to your medical staff.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                Add New Doctor
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Add a new doctor to your medical staff.
+              </p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Name *
+                  </label>
                   <input
                     type="text"
                     value={newDoctor.Name}
-                    onChange={(e) => setNewDoctor({ ...newDoctor, Name: e.target.value })}
+                    onChange={(e) =>
+                      setNewDoctor({ ...newDoctor, Name: e.target.value })
+                    }
                     placeholder="Doctor's full name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department *
+                  </label>
                   <input
                     type="text"
                     value={newDoctor.department}
-                    onChange={(e) => setNewDoctor({ ...newDoctor, department: e.target.value })}
+                    onChange={(e) =>
+                      setNewDoctor({ ...newDoctor, department: e.target.value })
+                    }
                     placeholder="e.g., Cardiology, Neurology"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Location *
+                  </label>
                   <input
                     type="text"
                     value={newDoctor.location}
-                    onChange={(e) => setNewDoctor({ ...newDoctor, location: e.target.value })}
+                    onChange={(e) =>
+                      setNewDoctor({ ...newDoctor, location: e.target.value })
+                    }
                     placeholder="Office location"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tokens Provided</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tokens Provided
+                    </label>
                     <input
                       type="number"
                       value={newDoctor.TokensProvided}
                       onChange={(e) =>
-                        setNewDoctor({ ...newDoctor, TokensProvided: Number.parseInt(e.target.value) || 0 })
+                        setNewDoctor({
+                          ...newDoctor,
+                          TokensProvided: Number.parseInt(e.target.value) || 0,
+                        })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tokens Served</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tokens Served
+                    </label>
                     <input
                       type="number"
                       value={newDoctor.TokensServed}
                       onChange={(e) =>
-                        setNewDoctor({ ...newDoctor, TokensServed: Number.parseInt(e.target.value) || 0 })
+                        setNewDoctor({
+                          ...newDoctor,
+                          TokensServed: Number.parseInt(e.target.value) || 0,
+                        })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="text-gray-900 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    availaibility
+                  </label>
                   <select
                     value={newDoctor.availaibilitty.toString()}
-                    onChange={(e) => setNewDoctor({ ...newDoctor, availaibilitty: e.target.value === "true" })}
+                    onChange={(e) =>
+                      setNewDoctor({
+                        ...newDoctor,
+                        availaibilitty: e.target.value === "true",
+                      })
+                    }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="true">Available</option>
@@ -887,7 +1106,9 @@ export default function DashboardPage() {
                   disabled={isSubmitting}
                   className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                 >
-                  {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isSubmitting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
                   Add Doctor
                 </button>
               </div>
@@ -907,7 +1128,9 @@ export default function DashboardPage() {
                 </div>
               </div>
               <h1 className="ml-3 text-xl font-semibold text-gray-900">
-                {clinicData?.clinic?.Name ? `${clinicData.clinic.Name} Dashboard` : "Hospital Dashboard"}
+                {clinicData?.clinic?.Name
+                  ? `${clinicData.clinic.Name} Dashboard`
+                  : "Hospital Dashboard"}
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -919,7 +1142,8 @@ export default function DashboardPage() {
                 Refresh
               </button>
               <div className="text-sm text-gray-600">
-                Welcome, <span className="font-medium text-gray-900">{user.email}</span>
+                Welcome,{" "}
+                <span className="font-medium text-gray-900">{user.email}</span>
               </div>
               <button
                 onClick={logout}
@@ -945,7 +1169,9 @@ export default function DashboardPage() {
               <div className="flex items-center space-x-3 text-red-600">
                 <X className="w-5 h-5" />
                 <div>
-                  <h3 className="text-sm font-medium">Error loading clinic data</h3>
+                  <h3 className="text-sm font-medium">
+                    Error loading clinic data
+                  </h3>
                   <p className="text-sm mt-1">{clinicError}</p>
                 </div>
               </div>
@@ -953,40 +1179,95 @@ export default function DashboardPage() {
           ) : clinicData ? (
             <>
               {/* Clinic Overview */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-900">Clinic Overview</h2>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl">
-                      <div className="text-indigo-600 text-sm font-medium">Clinic Name</div>
-                      <div className="text-2xl font-bold text-indigo-900 mt-1">{clinicData.clinic.Name}</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl">
-                      <div className="text-yellow-600 text-sm font-medium">Rating</div>
-                      <div className="text-2xl font-bold text-yellow-900 mt-1 flex items-center">
-                        ⭐ {clinicData.clinic.Rating}/5.0
+              <>
+                {/* Clinic Overview */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                  <div className="p-6 border-b border-gray-200">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Clinic Overview
+                    </h2>
+                  </div>
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl">
+                        <div className="text-indigo-600 text-sm font-medium">
+                          Clinic Name
+                        </div>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">
+                          {clinicData.clinic.Name}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-6 rounded-xl">
+                        <div className="text-yellow-600 text-sm font-medium">
+                          Rating
+                        </div>
+                        <div className="text-2xl font-bold text-yellow-900 mt-1 flex items-center">
+                          ⭐ {clinicData.clinic.Rating}/5.0
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl">
+                        <div className="text-blue-600 text-sm font-medium">
+                          Tokens Provided
+                        </div>
+                        <div className="text-2xl font-bold text-blue-900 mt-1">
+                          {clinicData.clinic.TokensProvided}
+                        </div>
+                      </div>
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl">
+                        <div className="text-green-600 text-sm font-medium">
+                          User Role
+                        </div>
+                        <div className="text-2xl font-bold text-green-900 mt-1 capitalize">
+                          {clinicData.user.role}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl">
-                      <div className="text-blue-600 text-sm font-medium">Tokens Provided</div>
-                      <div className="text-2xl font-bold text-blue-900 mt-1">{clinicData.clinic.TokensProvided}</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl">
-                      <div className="text-green-600 text-sm font-medium">User Role</div>
-                      <div className="text-2xl font-bold text-green-900 mt-1 capitalize">{clinicData.user.role}</div>
+
+                    {/* Location Section */}
+                    <div className="mt-6 flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                      <div>
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Latitude
+                            </label>
+                            <input
+                              type="number"
+                              value={latitude}
+                              onChange={(e) => setLatitude(e.target.value)}
+                              className="text-black mt-1 block w-full px-3 py-2  border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                              placeholder="28.4595"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              Longitude
+                            </label>
+                            <input
+                              type="number"
+                              value={longitude}
+                              onChange={(e) => setLongitude(e.target.value)}
+                              className="text-black mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                              placeholder="77.0266"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleUpdateLocation}
+                        className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        Update Location
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
-
+              </>
+              ) : null
               {/* Bed Section */}
               {renderBedSection()}
-
               {/* Blood Bank */}
               {renderBloodBankSection()}
-
               {/* Doctors */}
               {renderDoctorsSection()}
             </>
@@ -994,5 +1275,5 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
-  )
+  );
 }
