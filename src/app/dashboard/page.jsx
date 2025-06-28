@@ -102,7 +102,6 @@ export default function DashboardPage() {
           const data = await firestoreService.getClinicByUserEmail(user.email)
           setClinicData(data)
 
-          // Initialize form data
           if (data?.clinic?.bedSection) {
             setBedFormData(data.clinic.bedSection)
           }
@@ -117,6 +116,35 @@ export default function DashboardPage() {
         }
       }
     }
+    //Handle update location
+    const handleUpdateLocation = async () => {
+    setLoading(true);
+    try {
+      // Get current location
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const clinicDocRef = doc(db, 'clinics', clinicData.user.clinicId);
+
+          await updateDoc(clinicDocRef, {
+            loc: new GeoPoint(position.coords.latitude, position.coords.longitude),
+          });
+
+          alert('Location updated!');
+          setLoading(false);
+        },
+        (error) => {
+          console.error(error);
+          alert('Error getting location.');
+          setLoading(false);
+        }
+      );
+    } catch (error) {
+      console.error('Error updating location:', error);
+      alert('Error updating location.');
+      setLoading(false);
+    }
+  };
+
 
     fetchClinicData()
   }, [user])

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -59,10 +59,7 @@ export default function LoginPage() {
     },
   },
   location: "Clinic Location",
-  loc: {
-    latitude: 0,
-    longitude: 0,
-  },
+  loc: new GeoPoint(28.4634764,77.0516460),
   createdAt: serverTimestamp(),
 });
 
